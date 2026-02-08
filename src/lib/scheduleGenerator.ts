@@ -271,7 +271,7 @@ function createScheduleItem(
     volts = voltage['1phase']
   }
   
-  if (masterData.volts && amps && volts !== masterData.volts) {
+  if (masterData.volts && amps && volts && volts !== masterData.volts) {
     const power = masterData.volts * amps
     amps = parseFloat((power / volts).toFixed(2))
   }

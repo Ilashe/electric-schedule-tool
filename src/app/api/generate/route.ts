@@ -57,22 +57,23 @@ export async function POST(request: NextRequest) {
     const excelBuffer = await createExcelFile(schedule)
     
     // Return Excel file with metadata
-    return new NextResponse(excelBuffer, {
+    const headers = new Headers()
+    headers.set('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    headers.set('Content-Disposition', `attachment; filename="Quote_${schedule.quoteNumber}_ElectricalSchedule.xlsx"`)
+    headers.set('X-Quote-Number', schedule.quoteNumber)
+    headers.set('X-Project-Name', encodeURIComponent(schedule.projectName))
+    headers.set('X-Total-Motors', schedule.totalMotors.toString())
+    headers.set('X-Total-Amps', schedule.totalAmps.toString())
+    headers.set('X-Items-Generated', schedule.items.length.toString())
+    headers.set('X-Not-Found-Count', schedule.notFoundItems.length.toString())
+    headers.set('X-Not-Found-Items', encodeURIComponent(JSON.stringify(schedule.notFoundItems)))
+    headers.set('X-Excluded-Count', schedule.excludedItems.length.toString())
+    headers.set('X-Excluded-Items', encodeURIComponent(JSON.stringify(schedule.excludedItems)))
+    headers.set('X-Country', schedule.country)
+    
+    return new NextResponse(excelBuffer as any, {
       status: 200,
-      headers: {
-        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="Quote_${schedule.quoteNumber}_ElectricalSchedule.xlsx"`,
-        'X-Quote-Number': schedule.quoteNumber,
-        'X-Project-Name': encodeURIComponent(schedule.projectName),
-        'X-Total-Motors': schedule.totalMotors.toString(),
-        'X-Total-Amps': schedule.totalAmps.toString(),
-        'X-Items-Generated': schedule.items.length.toString(),
-        'X-Not-Found-Count': schedule.notFoundItems.length.toString(),
-        'X-Not-Found-Items': encodeURIComponent(JSON.stringify(schedule.notFoundItems)),
-        'X-Excluded-Count': schedule.excludedItems.length.toString(),
-        'X-Excluded-Items': encodeURIComponent(JSON.stringify(schedule.excludedItems)),
-        'X-Country': schedule.country,
-      },
+      headers,
     })
   } catch (error) {
     console.error('❌ Error generating schedule:', error)

@@ -5,12 +5,6 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '10mb'
     }
-  },
-  // API routes configuration
-  api: {
-    bodyParser: {
-      sizeLimit: '10mb'
-    }
   }
 }
 

@@ -16,7 +16,7 @@ export async function createExcelFile(schedule: GeneratedSchedule): Promise<Buff
   const titleCell = worksheet.getCell('A1')
   titleCell.value = `${schedule.projectName.toUpperCase()} - SCHEDULE REV 0`
   titleCell.font = { bold: true, size: 14 }
-  titleCell.alignment = { horizontal: 'left', vertical: 'center' }
+  titleCell.alignment = { horizontal: 'left', vertical: 'middle' }
   
   // Subtitle row (Row 3)
   worksheet.mergeCells('A3:F3')
@@ -59,7 +59,7 @@ export async function createExcelFile(schedule: GeneratedSchedule): Promise<Buff
     const cell = worksheet.getCell(6, i + 1)
     cell.value = header
     cell.font = { bold: true }
-    cell.alignment = { horizontal: 'center', vertical: 'center' }
+    cell.alignment = { horizontal: 'center', vertical: 'middle' }
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } }
     cell.border = {
       top: { style: 'thin' },
@@ -116,9 +116,9 @@ export async function createExcelFile(schedule: GeneratedSchedule): Promise<Buff
       }
       
       if (col !== 6) {
-        row.getCell(col).alignment = { horizontal: 'center', vertical: 'center' }
+        row.getCell(col).alignment = { horizontal: 'center', vertical: 'middle' }
       } else {
-        row.getCell(col).alignment = { vertical: 'center' }
+        row.getCell(col).alignment = { vertical: 'middle' }
       }
     }
     

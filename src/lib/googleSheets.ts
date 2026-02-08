@@ -206,11 +206,11 @@ function parseCSV(text: string): string[][] {
 
 /**
  * Parse cell value (handle empty, -, null)
+ * Returns string for text fields, keeps null for empty
  */
-function parseValue(value: string | undefined): string | number | null {
-  if (!value || value === '-' || value === '') return null
-  const num = parseFloat(value)
-  return isNaN(num) ? value : num
+function parseValue(value: string | undefined): string | null {
+  if (!value || value === '-' || value === '' || value.trim() === '') return null
+  return value.trim()
 }
 
 /**
