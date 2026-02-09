@@ -70,23 +70,22 @@ function detectCountry(text: string, address: string): string {
 }
 
 /**
- * Extract items from PDF text - WORKS WITH pdf-parse text extraction
+ * Extract items from PDF text - HANDLES pdf-parse removing spaces
  * 
- * pdf-parse often extracts PDFs with inconsistent spacing/newlines
- * We need to be more flexible in finding the items
+ * pdf-parse often removes spaces, so "Item Description Qty" becomes "ItemDescriptionQty"
+ * and "RC4 Roller..." becomes "RC4Roller..."
  */
 function extractItemsFromText(text: string): QuoteItem[] {
   const items: QuoteItem[] = []
   
   console.log('📋 Parsing items from quote...')
   
-  // Try multiple header patterns (pdf-parse might break spacing)
+  // pdf-parse removes spaces, so look for these patterns:
+  // "ItemDescriptionQty" or "Item Description" with various spacing
   const headerPatterns = [
-    /Item\s+Description\s+Qty\s+Unit\s+Price\s+Total/i,
-    /Item\s+Description\s+Qty/i,
-    /Description\s+Qty\s+Unit/i,
-    // Sometimes the table starts right at first part number
-    /^([A-Z]{2,}[\w\-\.]*)\s+[A-Z][a-z]/m
+    /ItemDescriptionQty/i,
+    /Item\s*Description\s*Qty/i,
+    /Description\s*Qty\s*Unit/i,
   ]
   
   let itemsText = text
@@ -97,104 +96,112 @@ function extractItemsFromText(text: string): QuoteItem[] {
     if (match && match.index !== undefined) {
       itemsText = text.substring(match.index + match[0].length)
       foundHeader = true
-      console.log('✓ Found items section with pattern:', pattern.source.substring(0, 50))
+      console.log('✓ Found items header at position', match.index)
       break
     }
   }
   
   if (!foundHeader) {
-    console.warn('⚠️  Could not find items table header, trying to find first item...')
-    // Look for common first items in AVW quotes
-    const firstItemPatterns = [/\b(RC\d|PHE\d|BCN\d|CTA\d|OT\d)/]
-    for (const pattern of firstItemPatterns) {
-      const match = text.match(pattern)
-      if (match && match.index) {
-        itemsText = text.substring(match.index)
-        console.log('✓ Starting from first detected item:', match[0])
-        break
-      }
+    console.warn('⚠️  Header not found, looking for first part number...')
+    // Look for common AVW part numbers
+    const firstItemMatch = text.match(/\b(RC\d|BCN\d|PHE\d|CTA\d|OT\d|RB\d|TR\d|WGM\d|PSH\d)/i)
+    if (firstItemMatch && firstItemMatch.index) {
+      itemsText = text.substring(firstItemMatch.index)
+      console.log('✓ Starting from:', firstItemMatch[0])
     }
   }
   
-  // Stop at common end markers
-  const endMarkers = [/Subtotal/i, /PRICE CHANGES/i, /WARRANTY/i]
-  for (const marker of endMarkers) {
-    const endMatch = itemsText.match(marker)
-    if (endMatch && endMatch.index) {
-      itemsText = itemsText.substring(0, endMatch.index)
-      console.log('✓ Stopping at:', endMatch[0])
-      break
-    }
+  // Stop at Subtotal
+  const endMatch = itemsText.match(/Subtotal/i)
+  if (endMatch && endMatch.index) {
+    itemsText = itemsText.substring(0, endMatch.index)
+    console.log('✓ Stopping at Subtotal')
   }
   
-  console.log('Items section length:', itemsText.length, 'characters')
+  console.log('Items text length:', itemsText.length)
+  console.log('First 300 chars:', itemsText.substring(0, 300))
   
-  // More aggressive line-by-line parsing
-  const lines = itemsText.split(/\r?\n/)
-  console.log('Processing', lines.length, 'lines')
+  // Now extract items using a pattern that handles missing spaces
+  // Pattern: PARTNUMBER (letters/numbers/hyphens) followed by description, then QTY PRICE.PRICET
+  // Example: "RC4 Roller Correlator... 1 5,385.00 5,385.00T"
+  // But with pdf-parse it might be: "RC4Roller Correlator... 15,385.005,385.00T"
   
-  let currentPart: string | null = null
-  let currentDesc: string[] = []
+  // More flexible regex that handles various spacing issues
+  const itemPattern = /\b([A-Z]{2,}[\w\-\.]{0,30})\s*([^0-9]{10,400}?)\s*(\d{1,3})\s*([\d,]+\.[\d]{2})\s*([\d,]+\.[\d]{2})T?/gi
+  
+  let match
   let foundCount = 0
   
-  for (const line of lines) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.length < 3) continue
+  while ((match = itemPattern.exec(itemsText)) !== null) {
+    const partNumber = match[1].trim()
+    let description = match[2].trim()
+    const quantity = parseInt(match[3])
     
-    // Check if line starts with a part number
-    // Part numbers: RC4, BCN3-1020-063, PHE2-0315, OT2-AA1, etc.
-    const partMatch = trimmed.match(/^([A-Z0-9][\w\-\.]{1,40})\s+(.+)/)
+    // Clean up description
+    description = description.replace(/\s+/g, ' ').trim()
     
-    if (partMatch) {
-      // Save previous item if we have one
-      if (currentPart && currentDesc.length > 0) {
-        const fullDesc = currentDesc.join(' ').trim()
-        // Extract quantity from description
-        const qtyMatch = fullDesc.match(/\s+(\d+)\s+[\d,]+\.[\d]{2}\s+[\d,]+\.[\d]{2}T?\s*$/)
-        if (qtyMatch) {
-          const quantity = parseInt(qtyMatch[1])
-          const description = fullDesc.substring(0, qtyMatch.index).trim()
-          
-          items.push({
-            partNumber: currentPart,
-            description: description.substring(0, 500), // Limit length
-            quantity
-          })
-          foundCount++
-          if (foundCount <= 5) {
-            console.log(`   Item ${foundCount}: ${currentPart} (qty: ${quantity})`)
-          }
-        }
-      }
-      
-      // Start new item
-      currentPart = partMatch[1]
-      currentDesc = [partMatch[2]]
-    } else if (currentPart) {
-      // Continue description from previous line
-      currentDesc.push(trimmed)
+    // Skip if part number looks invalid
+    if (partNumber.length < 2 || partNumber.length > 40) {
+      continue
     }
-  }
-  
-  // Don't forget the last item
-  if (currentPart && currentDesc.length > 0) {
-    const fullDesc = currentDesc.join(' ').trim()
-    const qtyMatch = fullDesc.match(/\s+(\d+)\s+[\d,]+\.[\d]{2}\s+[\d,]+\.[\d]{2}T?\s*$/)
-    if (qtyMatch) {
-      items.push({
-        partNumber: currentPart,
-        description: fullDesc.substring(0, qtyMatch.index).trim(),
-        quantity: parseInt(qtyMatch[1])
-      })
+    
+    // Skip common header words
+    const skipWords = ['ITEM', 'DESCRIPTION', 'QTY', 'UNIT', 'PRICE', 'TOTAL', 'PAGE']
+    if (skipWords.includes(partNumber.toUpperCase())) {
+      continue
+    }
+    
+    // Skip if description is too short
+    if (description.length < 5) {
+      continue
+    }
+    
+    items.push({
+      partNumber,
+      description: description.substring(0, 500),
+      quantity
+    })
+    
+    foundCount++
+    if (foundCount <= 10) {
+      console.log(`   Item ${foundCount}: ${partNumber} - ${description.substring(0, 50)}... (qty: ${quantity})`)
     }
   }
   
   console.log(`✓ Extracted ${items.length} items total`)
+  
+  if (items.length === 0) {
+    console.warn('⚠️  Still no items! Trying alternative pattern...')
+    
+    // Alternative: split by newlines and look for lines starting with part numbers
+    const lines = itemsText.split(/[\r\n]+/)
+    console.log(`Trying line-by-line parsing of ${lines.length} lines`)
+    
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (trimmed.length < 10) continue
+      
+      // Look for pattern: PARTNUMBER followed by text and ending with numbers
+      const lineMatch = trimmed.match(/^([A-Z0-9][\w\-\.]{1,30})\s*(.+?)\s*(\d+)\s*([\d,]+\.[\d]{2})\s*([\d,]+\.[\d]{2})T?/)
+      
+      if (lineMatch) {
+        const partNumber = lineMatch[1]
+        const description = lineMatch[2].trim().substring(0, 500)
+        const quantity = parseInt(lineMatch[3])
+        
+        if (quantity > 0 && description.length > 5) {
+          items.push({ partNumber, description, quantity })
+          if (items.length <= 5) {
+            console.log(`   Line match: ${partNumber} (qty: ${quantity})`)
+          }
+        }
+      }
+    }
+  }
+  
+  console.log(`✓ Final count: ${items.length} items`)
   if (items.length > 0) {
     console.log('First 5 part numbers:', items.slice(0, 5).map(i => i.partNumber))
-  } else {
-    console.warn('⚠️  No items extracted! Dumping first 500 chars of items section:')
-    console.warn(itemsText.substring(0, 500))
   }
   
   return items
