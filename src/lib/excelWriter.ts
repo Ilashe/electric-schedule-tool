@@ -106,7 +106,7 @@ export async function createExcelFile(schedule: GeneratedSchedule): Promise<Buff
     row.getCell(16).value = item.galMin
     row.getCell(17).value = item.btuh
     
-    // Apply borders
+    // Apply borders and alignment
     for (let col = 1; col <= 17; col++) {
       row.getCell(col).border = {
         top: { style: 'thin' },
@@ -115,10 +115,21 @@ export async function createExcelFile(schedule: GeneratedSchedule): Promise<Buff
         right: { style: 'thin' }
       }
       
-      if (col !== 6) {
-        row.getCell(col).alignment = { horizontal: 'center', vertical: 'middle' }
-      } else {
+      // Column B (Project Item #) - Right align
+      if (col === 2) {
+        row.getCell(col).alignment = { horizontal: 'right', vertical: 'middle' }
+      }
+      // Column C (Sub-letter) - Left align
+      else if (col === 3) {
+        row.getCell(col).alignment = { horizontal: 'left', vertical: 'middle' }
+      }
+      // Column F (Description) - Left align
+      else if (col === 6) {
         row.getCell(col).alignment = { vertical: 'middle' }
+      }
+      // All other columns - Center align
+      else {
+        row.getCell(col).alignment = { horizontal: 'center', vertical: 'middle' }
       }
     }
     

@@ -116,6 +116,7 @@ function shouldExclude(partNumber: string, exclusionList: string[]): boolean {
 
 /**
  * Process sub-components with smart nesting
+ * Uses proper nesting format: A, B, BA, BAA, BAAA (parent + A's)
  */
 function processSubComponentsWithNesting(
   subItems: SubComponent[],
@@ -150,8 +151,9 @@ function processSubComponentsWithNesting(
         registerMotor(parentItem)
       }
       
-      // Add children with nested letters
-      let childLetter = currentLetter + 'A'
+      // Add children with nested letters using proper format
+      // Parent is 'B', first child is 'BA', second child is 'BAA', third is 'BAAA'
+      let childLetter = currentLetter + 'A' // B → BA
       for (const child of children) {
         const childItem = createScheduleItem(
           child,
@@ -167,7 +169,8 @@ function processSubComponentsWithNesting(
           registerMotor(childItem)
         }
         
-        childLetter = incrementNestedLetter(childLetter)
+        // Increment: BA → BAA → BAAA → BAAAA
+        childLetter = childLetter + 'A'
       }
       
       i += 1 + children.length
@@ -190,6 +193,7 @@ function processSubComponentsWithNesting(
       i++
     }
     
+    // Move to next letter: A → B → C → D
     currentLetter = String.fromCharCode(currentLetter.charCodeAt(0) + 1)
   }
 }
